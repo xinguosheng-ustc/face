@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Title</title>
+    <link rel="stylesheet" href=../dist/css/zui.css>
+    <script src="../dist/lib/jquery/jquery.js"></script>
+    <script src="../dist/js/zui.min.js"> </script>
+    <script src="../dist/facedb.js"></script>
+    <style>
+        html,body{
+            height: 100%;
+        }
+        #createface,#registerface,#deleteface,#searchface{
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%,-50%);
+            background: #fff; /*背景色*/
+            display: none; /*隐藏*/
+            z-index: 2; /*覆盖*/
+            position: absolute;
+        }</style>
+</head>
+<body>
+<div class="left"  style="background: #6fa5db;width: 50%;height: 100%;float:left">
+    <div id = "l1" style="text-align:center;padding: 70px">
+        <button class="btn btn-lg" style="background: #d9edf7" type="button" onclick="createface()">创建人脸库</button></br>
+    </div>
+    <div id = "l2" style="text-align:center;padding: 70px">
+        <button class="btn btn-lg" style="background: #d9edf7" type="button" onclick="registerface()">注册人脸</button></br>
+    </div>
+    <div id = "l3" style="text-align:center;padding: 70px">
+        <button class="btn btn-lg" style="background: #d9edf7" type="button" onclick="deleteface()">删除人脸库</button></br>
+    </div>
+    <div id = "l4" style="text-align:center;padding: 70px">
+        <button class="btn btn-lg" style="background: #d9edf7" type="button" onclick="searchface()">人脸检测</button></br>
+    </div>
+    <div id = "l5" style="text-align:center;padding: 70px">
+        <button class="btn btn-lg" style="background: #d9edf7" type="button" onclick="video()">欢迎视频</button></br>
+    </div>
+</div>
+<div class="right" style="width: 50%;height: 100%;float:right">
+    <div class="list-group" id="lists">
+        <a href="#" class="list-group-item" id="qwe"> </a>
+
+    </div>
+</div>
+
+<div id="createface" style="width: 500px;height:200px;background: #888888">
+
+        <div class="form-group"  style="padding: 20px">
+            <label for="dbname">人脸库名称</label>
+            <input type="text" class="form-control" id="dbname" placeholder="人脸库名称">
+        </div>
+        <button type="submit"  class="btn btn-primary" onclick="uploadcreate()">提交</button>
+        <button type="submit" class="btn btn-primary" onclick="closecreateface()">关闭</button>
+
+</div>
+<div id="registerface" style="width: 500px;height:200px;background: #888888">
+        <div class="form-group"  style="padding: 20px">
+            <label for="name">人脸名称</label>
+            <input type="text" class="form-control" id="name" placeholder="人脸名称">
+        </div>
+        <div id="file">人脸图片</div>
+        <input type="file" id="imagefile">
+        <button type="submit" id="submit" class="btn btn-primary" onclick="uploadregister()">提交</button>
+        <button type="submit" class="btn btn-primary" onclick="closeregisterface()" >关闭</button>
+</div>
+<div id="deleteface" style="width: 500px;height:200px;background: #888888">
+
+    <div class="form-group"  style="padding: 20px">
+        <label for="dbname">要删除的人脸库名称</label>
+        <input type="text" class="form-control" id="deldbname" placeholder="要删除的人脸库名称">
+    </div>
+    <button type="submit"  class="btn btn-primary" onclick="deletefacedb()">提交</button>
+    <button type="submit" class="btn btn-primary" onclick="closedeleteface()">关闭</button>
+</div>
+<div id="searchface" style="width: 500px;height:200px;background: #888888">
+
+    <div class="form-group"  style="padding: 20px">
+        <h2>此处上传需要检测的人脸图片</h2>
+        <input type="file" id="faceimage">
+    </div>
+    <button type="submit"  class="btn btn-primary" onclick="searchfacedb()">提交</button>
+    <button type="submit" class="btn btn-primary" onclick="closesearchface()">关闭</button>
+</div>
+</body>
+</html>
