@@ -7,6 +7,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class UIController {
     @RequestMapping("/ui")
     public String faceUi(){
-        return "Test";
+        return "index";
     }
 }
