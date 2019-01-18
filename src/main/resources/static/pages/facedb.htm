@@ -12,8 +12,14 @@
     <style>
         html,body{
             height: 100%;
+            width: 100%;
         }
-        #registerface,#searchface,#deleteface{
+        #registerface{
+            background: #fff; /*背景色*/
+            z-index: 2; /*覆盖*/
+            position: absolute;
+        }
+        #searchface,#deleteface,#compareface{
             /*left: 50%;*/
             /*top: 50%;*/
             /*transform: translate(-50%,-50%);*/
@@ -21,51 +27,108 @@
             display: none; /*隐藏*/
             z-index: 2; /*覆盖*/
             position: absolute;
-        }</style>
+        }
+    /*#longimg{*/
+        /*display: none; !*隐藏*!*/
+        /*}
+    </style>
 </head>
 <body>
-<div id = "left" class="left"  style="background: #6fa5db;width: 50%;height: 100%;float:left">
+<div id = "left" class="left"   style="width: 40%;height: 100%;float:left;background:#d9edf7;background-repeat: no-repeat;background-position:center center">
     <div id = "l2" style="text-align:center;padding: 70px">
-        <button class="btn btn-lg" style="background: #d9edf7" type="button" onclick="registerface()">注册人脸</button></br>
+        <button class="btn btn-lg" style="background: yellow; width: 50%;height: 100%;font-weight:bold" type="button" onclick="registerface()">注册人脸</button></br>
     </div>
     <div id = "l4" style="text-align:center;padding: 70px">
-        <button class="btn btn-lg" style="background: #d9edf7" type="button" onclick="searchface()">人脸检测</button></br>
+        <button class="btn btn-lg" style="background: #6fa5db; width: 50%;height: 100%;font-weight:bold" type="button" onclick="searchface()">人脸检测</button></br>
     </div>
     <div id = "l5" style="text-align:center;padding: 70px">
-        <button class="btn btn-lg" style="background: #d9edf7" type="button" onclick="deleteface()">人脸删除</button></br>
+        <button class="btn btn-lg" style="background: #6fa5db; width: 50%;height: 100%;font-weight:bold" type="button" onclick="deleteface()">人脸删除</button></br>
+    </div>
+    <div id = "l6" style="text-align:center;padding: 70px">
+        <button class="btn btn-lg" style="background: #6fa5db; width: 50%;height: 100%;font-weight:bold" type="button" onclick="compareface()">人脸比对</button></br>
     </div>
 </div>
-<div id="right" class="right" style="width: 50%;height: 100%;float:right">
-    <div id="registerface" style="width:50%;height:100%;background: #888888;float:right">
-        <div class="form-group"  style="padding: 20px">
+<div id="right" class="right" style="width: 60%;height: 65%;float:right">
+    <div id="registerface" style="width:60%;height:65%;float:right">
+        <div class="form-group"  style="padding: 15px">
             <label for="name">人脸名称</label>
-            <input type="text" class="form-control" id="name" placeholder="人脸名称">
+            <input type="text" class="form-control" id="name" placeholder="姓名">
+        </div>
+        <div class="form-group"  style="padding: 15px">
+            <label for="workunit">工作单位</label>
+            <input type="text" class="form-control" id="workunit" placeholder="工作单位">
+        </div>
+        <div class="form-group"  style="padding: 15px">
+            <label for="occupation">职业</label>
+            <input type="text" class="form-control" id="occupation" placeholder="职业">
+        </div>
+        <label for="chose" style="padding-left: 15px">性别</label>
+        <br>
+        <div id="chose" style="font-size: 20px;font-weight: bold;padding: 15px">
+            <select data-placeholder="选择性别..." id = "select" class="chosen-select form-control" tabindex="2">
+            <option value="男">男</option>
+            <option value="女">女</option>
+        </select>
         </div>
         <div id="file">人脸图片</div>
         <input type="file" id="imagefile">
-        <button type="submit" id="submit" class="btn btn-primary" onclick="uploadregister()">提交</button>
-        <button type="submit" class="btn btn-primary" onclick="closeregisterface()" >关闭</button>
+        <div id ="buttons" style="text-align: center">
+            <button type="submit" id="submit" class="btn btn-primary" onclick="uploadregister()">提交</button>
+            <button type="submit" class="btn btn-primary" onclick="closeregisterface()" >关闭</button>
+        </div>
     </div>
-    <div id="searchface" style="width:50%;height:100%;background: #888888;float:right">
+    <div id="searchface" style="width:60%;height:65%;float:right">
 
         <div class="form-group"  style="padding: 20px">
             <h2>此处上传需要检测的人脸图片</h2>
             <input type="file" id="faceimage">
         </div>
-        <button type="submit"  class="btn btn-primary" onclick="searchfacedb()">提交</button>
-        <button type="submit" class="btn btn-primary" onclick="closesearchface()">关闭</button>
+        <div id = "searchbutton" style="text-align: center">
+            <button type="submit"  class="btn btn-primary" onclick="searchfacedb()">提交</button>
+            <button type="submit" class="btn btn-primary" onclick="closesearchface()">关闭</button>
+        </div>
+        <div id="searchtext" style="font-size: 20px;font-weight: bold; padding: 50px">人脸检索结果</div>
     </div>
     <div>
-        <div id="deleteface" style="width:50%;height:100%;background: #888888;float:right">
+        <div id="deleteface" style="width:60%;height:65%;float:right">
 
             <div class="form-group"  style="padding: 20px">
                 <h2>此处上传需要删除的人脸图片</h2>
                 <input type="file" id="deleteimage">
             </div>
+            <div id = "deletebutton" style="text-align: center">
             <button type="submit"  class="btn btn-primary" onclick="deletefacedb()">提交</button>
             <button type="submit" class="btn btn-primary" onclick="closedeleteface()">关闭</button>
+            </div>
         </div>
     </div>
+    <div id="compareface" style="width:60%;height:65%;float:right">
+
+        <div class="form-group"  style="padding: 20px">
+            <h2>此处上传比对的人脸图片1</h2>
+            <input type="file" id="face1">
+        </div>
+        <div class="form-group"  style="padding: 20px">
+            <h2>此处上传比对的人脸图片2</h2>
+            <input type="file" id="face2">
+        </div>
+        <div id = "comparebutton" style="text-align: center">
+        <button type="submit"  class="btn btn-primary" onclick="facescore()">提交</button>
+        <button type="submit" class="btn btn-primary" onclick="closecompareface()">关闭</button>
+        </div>
+        <div id="comparetext" style="font-size: 20px;font-weight: bold; padding: 50px">人脸检索结果</div>
+    </div>
+  </div>
+<div id="imgshow1"  style="width: 25%;height: 35%;display: none;float:right">
+    <img src="../img/leftbg.jpg" style="width: 100%;height: 100%">
 </div>
+    <div id="imgshow2"  style="width: 25%;height: 35%;display: none;float:right">
+        <img src="../img/leftbg.jpg" style="width: 100%;height: 100%">
+</div>
+<div id = "longimg" style="width: 25%;height: 35%;float:left">
+    <img src="../img/leftbg.jpg" style="width: 100%;height: 100%">
+</div>
+</div>
+
 </body>
 </html>

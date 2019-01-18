@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import java.io.*;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,7 +27,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 @Controller
 @RequestMapping("/image")
 public class ImageService {
-
+    @Value("${flag}")
+    private double flag;
     @Value("${engineurl}")
     private String url;
     @Autowired
@@ -67,11 +69,18 @@ public class ImageService {
      */
     @RequestMapping("/registerface")
     @ResponseBody
-    public String registerFace(@RequestParam(value="name")String facename,@RequestParam(value = "imagefile")MultipartFile file) {
+    public String registerFace(@RequestParam(value="name")String facename,@RequestParam(value = "imagefile")MultipartFile file,@RequestParam(value="workunit")String workunit,@RequestParam(value = "sex")String sex,@RequestParam(value = "occupation")String occupation) {
         CloudHttpServer httpServer = new CloudHttpServer();
         String encodeurl = "http://"+url+"/locationEncode";
         int uniqueid[] = {-1};
+        if(workunit.equals(null))
+            return "workunit is null";
 
+        if(sex.equals(null))
+            return "sex is null";
+
+        if(occupation.equals(null))
+            return "occupation is null";
         String filepath = "./img/" + file.getOriginalFilename() + String.valueOf(new Random().nextLong()) + System.currentTimeMillis() + ".jpg";
 
         Map<String, Object> imageInfo = new HashMap<>();
@@ -94,7 +103,8 @@ public class ImageService {
             return "image include more than one face";
 
         FaissInfo faissInfo = faissIndex.searchIndex(1, engineData.getEncodes().get(0));
-        if (Math.sqrt(faissInfo.distance[0]) > 1.1) {
+
+        if (faissInfo.distance[0] <flag) {
             //距离太大，数据库无此人脸
             uniqueid[0] = faceDao.searchMaxUniqueId() + 1;
 
@@ -139,7 +149,9 @@ public class ImageService {
 //        }
             //     信息插入数据库
 
-            faceDao.insertFace(uniqueid[0], facename, blob, filepath); //一般信息存入mysql
+            int ret =  faceDao.insertFace(uniqueid[0], facename, blob, filepath,workunit,sex,occupation); //一般信息存入mysql
+            if(ret ==1 )
+                return "register face failed";
             faissIndex.addIndex("FaceUser", 1, encode, uniqueid,128);//人脸特征存入faiss
             return "register face success";
         }
@@ -156,14 +168,27 @@ public class ImageService {
     public String searchFaceEncode(@org.springframework.web.bind.annotation.RequestBody MyFloat encode){
         float[] floats = encode.getEncode();
         for(int i=0;i<floats.length;i++)
+        System.out.println(floats[i]);
+        for(int i=0;i<floats.length;i++)
             System.out.println(floats[i]);
         FaissInfo faissInfo = faissIndex.searchIndex(1,floats);
         long uniqueid = faissInfo.ids[0];
         float distance = faissInfo.distance[0];
-        if(Math.sqrt(distance)>1.1)
+        if(distance<flag)
             return "unknown";
-        String result = JSON.toJSONString(faceDao.searchDb((int)uniqueid),true);
-        return result;
+        List<Map<String,Object>> lists = faceDao.searchDb((int)uniqueid);
+        Map<String,String> result = new HashMap<>();
+        for(Map<String,Object> map : lists){
+            String personName = String.valueOf(map.get("NAME"));
+            String personWorkunit = String.valueOf(map.get("WORKUNIT"));
+            String personSex = String.valueOf(map.get("SEX"));
+            String personOccupation = String.valueOf(map.get("OCCUPATION"));
+            result.put("name",personName);
+            result.put("sex",personSex);
+            result.put("company",personWorkunit);
+            result.put("job",personOccupation);
+        }
+        return JSON.toJSONString(result);
     }
 
     /**
@@ -177,7 +202,7 @@ public class ImageService {
         Mat mat = null;
         String encodeurl = "http://"+url+"/locationEncode";
         CloudHttpServer httpServer = new CloudHttpServer();
-        Set<String> personNames = new HashSet<>();
+        Set<String> personsInfo = new HashSet<>();
         try {
             mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()),1);
         } catch (IOException e) {
@@ -199,9 +224,9 @@ public class ImageService {
             for(int j =0;j<128;j++)
                 searchEncodes[128*i+j] = engineData.getEncodes().get(i)[j];
         FaissInfo faissInfo = faissIndex.searchIndex(picNum,searchEncodes);
-
         for(int i=0;i<picNum;i++){
-            if(Math.sqrt((double)faissInfo.distance[i*10])>1.1) {
+
+            if((double)faissInfo.distance[i*10]<flag) {
                 continue;
             }
             else{
@@ -210,15 +235,25 @@ public class ImageService {
                     continue;
                 for(Map<String,Object> map : mapList){
                     String personName = String.valueOf(map.get("NAME"));
-                    personNames.add(personName);
+                    String personWorkunit = String.valueOf(map.get("WORKUNIT"));
+                    String personSex = String.valueOf(map.get("SEX"));
+                    String personOccupation = String.valueOf(map.get("OCCUPATION"));
+                    personsInfo.add(personName+","+personWorkunit+","+personSex+","+personOccupation);
                 }
             }
         }
-        if(personNames.isEmpty())
+        if(personsInfo.isEmpty())
             return "no people in this picture";
-        return JSON.toJSONString(personNames);
+
+        return JSON.toJSONString(personsInfo);
     }
 
+    /**
+     *
+     * 删除人脸
+     * @param file
+     * @return
+     */
     @RequestMapping("/deleteface")
     @ResponseBody
     public String deleteFace(@RequestParam(value = "image") MultipartFile file){
@@ -246,11 +281,11 @@ public class ImageService {
             for(int j =0;j<128;j++)
                 searchEncodes[128*i+j] = engineData.getEncodes().get(i)[j];
         FaissInfo faissInfo = faissIndex.searchIndex(picNum,searchEncodes);
-        List<Integer> deleteIds = new ArrayList<>();
+        Set<Integer> deleteIds = new HashSet<>();
         if(faissInfo.distance.length<1)
             return "can't find this person";
         for(int i=0;i<faissInfo.distance.length;i++){
-            if(Math.sqrt(faissInfo.distance[i])<1.1){
+            if(faissInfo.distance[i]>flag){
                 deleteIds.add((int)faissInfo.ids[i]);
             }
         }
@@ -275,15 +310,60 @@ public class ImageService {
     }
 
     /**
-     *
-     * @param file
+     * 人脸比对
+     * @param files
      * @return
      */
     @RequestMapping("/predict")
     @ResponseBody
-    public  String  predict(@RequestParam(value = "image") MultipartFile file){
+    public  String  predict(@RequestParam(value = "imagefile") List<MultipartFile> files){
+        Mat mat = null;
+        String encodeurl = "http://"+url+"/locationEncode";
+        List<float[]> fileFeature = new ArrayList<>();
+        if(files.size()>2)
+            return "picture num more than 2";
+        if(files.size()<2)
+            return "picture num less than 2";
+        for(MultipartFile file:files){
+            try(CloudHttpServer httpServer = new CloudHttpServer()) {
+                mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()),1);
+                MatOfByte matOfByte = new MatOfByte();
+                Imgcodecs.imencode(".jpg",mat,matOfByte);
+                byte[] result = Base64.encodeBase64(matOfByte.toArray());
+                Map<String,Object> imageInfo = new HashMap<>();
+                imageInfo.put("image",new String(result));
+                String responseData = httpServer.SendMessage(imageInfo,encodeurl);
+                if(responseData.equals("null")){
+                    return "search failed";
+                }
+                EngineData engineData = JSONObject.parseObject(responseData,EngineData.class);
+                if(engineData.getEncodes().size()>1)
+                    return  file.getOriginalFilename()+" has more than one person";
+                if(engineData.getEncodes().size()<1)
+                    return file.getOriginalFilename()+" has no person";
+                fileFeature.add(engineData.getEncodes().get(0));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        float[] fPic1 = fileFeature.get(0);
+        float[] fPic2 = fileFeature.get(1);
+            double fenzi=0;
+            for(int i=0;i<fPic1.length;i++){
+                fenzi+=fPic1[i]*fPic2[i];
+            }
 
-        return null;
+            double left=0;
+            double right=0;
+            for(int i=0;i<fPic1.length;i++){
+                left+=fPic1[i]*fPic1[i];
+                right+=fPic2[i]*fPic2[i];
+            }
+
+            double result=fenzi/Math.sqrt(left*right);
+
+            return String.valueOf(result);
+
     }
 
 

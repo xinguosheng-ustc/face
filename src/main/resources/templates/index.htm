@@ -10,14 +10,27 @@
     <script src="./dist/js/zui.min.js"> </script>
     <style>
         html,body{
-        height: 100%;
-    }</style>
+            height: 100%;width:100%;
+        }
+        #lhead{
+            height:15%;
+        }
+        #content{
+            height:85%;
+        }
+
+    </style>
 </head>
 <body>
-    <div id ="l1" style="color:white;width:100%;font-size:25px;height:10%">
-        <div class="logo" style="float: left;"><img src="img/cooplog.png"></div>
-        <div class="logo1" style="float: left;margin-left: 200px;margin-top: 50px";><img src="img/head.png"></div>
+    <div id ="lhead"  style=" background-image:url('img/headbg.jpg') ;width:100%;font-size:25px">
+        <div id="logo" style="float: left;height:100%"><img src="img/cooplog.png" width=100% height=100%></div>
+        <!--<div id="d1" style="float: left;margin-left: 80px;margin-top: 10px";><img src="img/head.png"></div>-->
+        <!--<div id="d2" style="float: left;margin-left: 80px;margin-top: 10px";><img src="img/head.png"></div>-->
+        <!--<div id="d3" style="float: left;margin-left: 80px;margin-top: 10px";><img src="img/head.png"></div>-->
+        <!--<div id="d4" style="float: left;margin-left: 80px;margin-top: 10px";><img src="img/head.png"></div>-->
     </div>
-    <iframe style="height: 85%;width: 100%" frameborder="0" src = "pages/facedb.htm"></iframe>
+    <div id="content">
+        <iframe style="height: 100%;width: 100%" frameborder="0" src = "pages/facedb.htm"></iframe>
+    </div>
 </body>
 </html>

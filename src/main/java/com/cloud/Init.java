@@ -14,7 +14,7 @@ import java.io.File;
 public class Init implements CommandLineRunner {
     public static Logger logger = LoggerFactory.getLogger(Init.class);
     static {
-        System.loadLibrary(Core.NATIVE_LIBRARY_NAME); //load library
+        System.loadLibrary("opencv_java343"); //load library
         System.loadLibrary("FaissIndex");
     }
     @Autowired

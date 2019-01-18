@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 @Component
-public class CloudHttpServer {
+public class CloudHttpServer implements AutoCloseable{
     private OkHttpClient client = new OkHttpClient
             .Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
@@ -37,6 +37,11 @@ public class CloudHttpServer {
             return "null";
         }
         return responseData;
+
+    }
+
+    @Override
+    public void close() throws Exception {
 
     }
 }

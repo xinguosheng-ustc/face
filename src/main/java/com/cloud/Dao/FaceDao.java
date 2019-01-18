@@ -7,7 +7,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.io.UnsupportedEncodingException;
 import java.sql.Blob;
+import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 
@@ -32,15 +34,16 @@ public class FaceDao {
     /*
           注册人脸到数据库
      */
-    public int insertFace(int uniquedId,String name,byte[] blob,String path){
-        String sql = "insert into USER (UNIQUEID,NAME,ENCODING,IMAGEPATH) value (?,?,?,?)";
-        Object args[] = {uniquedId,name,blob,path};
-        int temp = jdbcTemplate.update(sql,args);
-        if(temp>0){
-            return 0;
-        }else{
-            return 1;
-        }
+    public int insertFace(int uniquedId,String name,byte[] blob,String path,String workunit,String sex,String occupation){
+            String sql = "insert into USER (UNIQUEID,NAME,ENCODING,IMAGEPATH,WORKUNIT,SEX,OCCUPATION) value (?,?,?,?,?,?,?)";
+            Object args[] = {uniquedId,name,blob,path,workunit,sex,occupation};
+            int types[] = {Types.INTEGER,Types.CHAR,Types.BLOB,Types.CHAR,Types.VARCHAR,Types.VARCHAR,Types.VARCHAR};
+            int temp = jdbcTemplate.update(sql,args);
+            if(temp>0){
+                return 0;
+            }else{
+                return 1;
+            }
 
     }
     public int deleteFace(int uniqueId){
