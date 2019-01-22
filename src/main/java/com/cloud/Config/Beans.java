@@ -12,4 +12,5 @@ public class Beans {
     public FaissIndex getFaissindex(){
         return new FaissIndex();
     }
+
 }

@@ -26,5 +26,6 @@ public class Init implements CommandLineRunner {
                 file.mkdirs();
             }
             faissIndex.createIndex("FaceUser",128);
+
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.io.UnsupportedEncodingException;
 import java.sql.Blob;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +38,6 @@ public class FaceDao {
     public int insertFace(int uniquedId,String name,byte[] blob,String path,String workunit,String sex,String occupation){
             String sql = "insert into USER (UNIQUEID,NAME,ENCODING,IMAGEPATH,WORKUNIT,SEX,OCCUPATION) value (?,?,?,?,?,?,?)";
             Object args[] = {uniquedId,name,blob,path,workunit,sex,occupation};
-            int types[] = {Types.INTEGER,Types.CHAR,Types.BLOB,Types.CHAR,Types.VARCHAR,Types.VARCHAR,Types.VARCHAR};
             int temp = jdbcTemplate.update(sql,args);
             if(temp>0){
                 return 0;
@@ -72,8 +72,13 @@ public class FaceDao {
         return list;
     }
     /*
-
+        更新最后来访时间
      */
-
+    public int updateTimestamp(int uniqueId, Timestamp timestamp){
+        String sql = "update USER SET LASTTIME =? where UNIQUEID = ?";
+        Object args[] = {timestamp,uniqueId};
+        int temp = jdbcTemplate.update(sql,args);
+        return temp;
+    }
 
 }

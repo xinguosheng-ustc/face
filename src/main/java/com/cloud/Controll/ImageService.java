@@ -3,9 +3,9 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.cloud.CloudHttpServer.CloudHttpServer;
 import com.cloud.Dao.FaceDao;
+import com.cloud.Components.DeviceInfoAll;
 import com.cloud.DataStruct.MyFloat;
 import com.cloud.DataStruct.EngineData;
-import com.cloud.DataStruct.ResultData;
 import com.cloud.JniPackage.FaissIndex;
 import com.cloud.JniPackage.FaissInfo;
 import org.apache.commons.codec.binary.Base64;
@@ -19,11 +19,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import java.io.*;
-import java.text.DecimalFormat;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
+
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.ResponseBody;
+
+import javax.servlet.http.HttpServletRequest;
+
 @Controller
 @RequestMapping("/image")
 public class ImageService {
@@ -35,7 +39,6 @@ public class ImageService {
     private FaissIndex faissIndex;
     @Autowired
     private FaceDao faceDao;
-
     public String getUrl() {
         return url;
     }
@@ -43,6 +46,7 @@ public class ImageService {
     public void setUrl(String url) {
         this.url = url;
     }
+
 
     /**
      * 创建人脸库
@@ -53,10 +57,6 @@ public class ImageService {
     @RequestMapping("/createfacedb")
     @ResponseBody
     public String createFaceDb(@RequestParam(value = "dbname")String dbName){
-//        String createFaceDbUrl = "http://"+url+"/createTable";
-//        Map<String,Object> dbinfo = new HashMap<>();
-//        dbinfo.put("name",dbName);
-//        JSONObject jsonObject = new JSONObject(dbinfo);
         return "create facedb success";
     }
 
@@ -167,16 +167,17 @@ public class ImageService {
     @ResponseBody
     public String searchFaceEncode(@org.springframework.web.bind.annotation.RequestBody MyFloat encode){
         float[] floats = encode.getEncode();
-        for(int i=0;i<floats.length;i++)
-        System.out.println(floats[i]);
-        for(int i=0;i<floats.length;i++)
-            System.out.println(floats[i]);
         FaissInfo faissInfo = faissIndex.searchIndex(1,floats);
         long uniqueid = faissInfo.ids[0];
         float distance = faissInfo.distance[0];
         if(distance<flag)
             return "unknown";
         List<Map<String,Object>> lists = faceDao.searchDb((int)uniqueid);
+        Date date = new Date();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String nowTime = sdf.format(date);//将时间格式转换成符合Timestamp要求的格式.
+        Timestamp dates =Timestamp.valueOf(nowTime);//把时间转换
+        faceDao.updateTimestamp((int)uniqueid,dates);
         Map<String,String> result = new HashMap<>();
         for(Map<String,Object> map : lists){
             String personName = String.valueOf(map.get("NAME"));
@@ -361,10 +362,6 @@ public class ImageService {
             }
 
             double result=fenzi/Math.sqrt(left*right);
-
             return String.valueOf(result);
-
     }
-
-
 }
