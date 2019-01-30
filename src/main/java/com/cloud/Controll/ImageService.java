@@ -8,10 +8,11 @@ import com.cloud.DataStruct.MyFloat;
 import com.cloud.DataStruct.EngineData;
 import com.cloud.JniPackage.FaissIndex;
 import com.cloud.JniPackage.FaissInfo;
+import com.cloud.plugin.ShowImage;
 import org.apache.commons.codec.binary.Base64;
-import org.opencv.core.Mat;
-import org.opencv.core.MatOfByte;
+import org.opencv.core.*;
 import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.imgproc.Imgproc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -28,9 +29,12 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpServletRequest;
 
+import static org.opencv.imgcodecs.Imgcodecs.IMREAD_UNCHANGED;
+
 @Controller
 @RequestMapping("/image")
 public class ImageService {
+    private int dim = 128;
     @Value("${flag}")
     private double flag;
     @Value("${engineurl}")
@@ -70,93 +74,134 @@ public class ImageService {
     @RequestMapping("/registerface")
     @ResponseBody
     public String registerFace(@RequestParam(value="name")String facename,@RequestParam(value = "imagefile")MultipartFile file,@RequestParam(value="workunit")String workunit,@RequestParam(value = "sex")String sex,@RequestParam(value = "occupation")String occupation) {
-        CloudHttpServer httpServer = new CloudHttpServer();
         String encodeurl = "http://"+url+"/locationEncode";
         int uniqueid[] = {-1};
-        if(workunit.equals(null))
-            return "workunit is null";
-
-        if(sex.equals(null))
-            return "sex is null";
-
-        if(occupation.equals(null))
-            return "occupation is null";
         String filepath = "./img/" + file.getOriginalFilename() + String.valueOf(new Random().nextLong()) + System.currentTimeMillis() + ".jpg";
-
-        Map<String, Object> imageInfo = new HashMap<>();
         Mat mat = null;
+        Mat borderMat = null;
+        Map<String,Object> imageInfo = new HashMap<>();
+        CloudHttpServer httpServer = new CloudHttpServer();
         try {
             mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()), 1);
-        } catch (IOException e) {
-            e.printStackTrace();
+            int originCols = mat.cols();
+            int originRows = mat.rows();
+            borderMat = new Mat(2*originCols,2*originRows, CvType.CV_8UC3,new Scalar(255,255,255));
+            Rect area = new Rect(0,0,originCols,originRows);
+            Mat newBorderMat = new Mat(borderMat,area);
+            mat.copyTo(newBorderMat);
+        }catch (Exception e){
+            return "register face failed";
         }
         MatOfByte matOfByte = new MatOfByte();
-        Imgcodecs.imencode(".jpg", mat, matOfByte);
+        Imgcodecs.imencode(".jpg",borderMat,matOfByte);
         byte[] result = Base64.encodeBase64(matOfByte.toArray());
-        /**
-         * database solve
-         */
-        imageInfo.put("image", new String(result));
-        String responseData = httpServer.SendMessage(imageInfo, encodeurl);
-        EngineData engineData = JSONObject.parseObject(responseData, EngineData.class);
+        imageInfo.put("image",new String(result));
+        String responseData = httpServer.SendMessage(imageInfo,encodeurl);
+        EngineData engineData = JSONObject.parseObject(responseData,EngineData.class);
         if (engineData.getEncodes().size() > 1)
             return "image include more than one face";
 
         FaissInfo faissInfo = faissIndex.searchIndex(1, engineData.getEncodes().get(0));
-
         if (faissInfo.distance[0] <flag) {
-            //距离太大，数据库无此人脸
+                //距离太大，数据库无此人脸
             uniqueid[0] = faceDao.searchMaxUniqueId() + 1;
-
         } else {
             uniqueid[0] = (int) faissInfo.ids[0];
         }
 
-        //从引擎获取图片的特征
+            //从引擎获取图片的特征
         float[] encode = engineData.getEncodes().get(0);
-        //转base64
-        String strencode = Arrays.toString(encode);
-        byte[] blob = Base64.encodeBase64(strencode.getBytes());
-        //图片存到本地
-        BufferedInputStream bis = null;
-        FileOutputStream fr = null;
-        try {
-            bis = new BufferedInputStream(file.getInputStream());
-            fr = new FileOutputStream(filepath);
-            byte[] buffer = new byte[1024];
-            int ret = -1;
-            while ((ret = bis.read(buffer, 0, buffer.length)) != -1) {
-                fr.write(buffer, 0, ret);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (bis != null) {
-                try {
-                    bis.close();
-                } catch (IOException e) {
-                    System.out.println("bis register face failed");
-                    return "register face failed";
-                }
-            }
-            if (fr != null) {
-                try {
-                    fr.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-//        }
+            //转base64
+//        String strencode = Arrays.toString(encode);
+//        byte[] blob = Base64.encodeBase64(strencode.getBytes());
             //     信息插入数据库
+        Date date = new Date();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String nowTime = sdf.format(date);//将时间格式转换成符合Timestamp要求的格式.
+        Timestamp dates =Timestamp.valueOf(nowTime);//把时间转换
+        int retInsert =  faceDao.insertFace(uniqueid[0], facename, filepath,workunit,sex,occupation,dates); //一般信息存入mysql
+        if(retInsert ==1 )
+            return "register face failed";
+        faissIndex.addIndex("FaceUser", 1, encode, uniqueid,dim);//人脸特征存入faiss
 
-            int ret =  faceDao.insertFace(uniqueid[0], facename, blob, filepath,workunit,sex,occupation); //一般信息存入mysql
-            if(ret ==1 )
-                return "register face failed";
-            faissIndex.addIndex("FaceUser", 1, encode, uniqueid,128);//人脸特征存入faiss
-            return "register face success";
-        }
+        boolean ret = FileStore(file,filepath);
+        if(ret == false)
+            return "register face failed";
+
+        return "register face success";
     }
 
+    /**
+     *  批量注册人脸
+     */
+    @RequestMapping("/registerbatch")
+    @ResponseBody
+    public String registerBatch(@RequestParam("files") List<MultipartFile> files,@RequestParam("workunit")String workunit) {
+        int num = files.size();
+        for(MultipartFile file : files) {
+            Mat mat = null;
+            String filename = file.getOriginalFilename();
+            String[] str = filename.split("_");
+            String occu = str[0];
+            String sex = "";
+            String namepre = str[1];
+
+            int index = namepre.indexOf(".");
+            String facename = namepre.substring(0, index);
+            CloudHttpServer httpServer = new CloudHttpServer();
+            String encodeurl = "http://" + url + "/locationEncode";
+            int uniqueid[] = {-1};
+            String filepath = "./img/" + file.getOriginalFilename() + String.valueOf(new Random().nextLong()) + System.currentTimeMillis() + ".jpg";
+            BufferedInputStream bis = null;
+            FileOutputStream fr = null;
+
+//            mat = Imgcodecs.imread(filepath,1);
+
+            Map<String, Object> imageInfo = new HashMap<>();
+            try {
+                mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()),1);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            System.out.println(file.getOriginalFilename());
+            MatOfByte matOfByte = new MatOfByte();
+            Imgcodecs.imencode(".jpg",mat,matOfByte);
+            byte[] result = Base64.encodeBase64(matOfByte.toArray());
+            imageInfo.put("image",new String(result));
+            String responseData = httpServer.SendMessage(imageInfo, encodeurl);
+            EngineData engineData = JSONObject.parseObject(responseData, EngineData.class);
+            if (engineData.getEncodes().size() > 1)
+                return filename + " image include more than one face";
+            if(engineData.getEncodes().size()<=0)
+                return filename + "image has no people";
+            float[] test = engineData.getEncodes().get(0);
+            FaissInfo faissInfo = faissIndex.searchIndex(1,test);
+            if (faissInfo.distance[0] < flag) {
+                //距离太大，数据库无此人脸
+                uniqueid[0] = faceDao.searchMaxUniqueId() + 1;
+
+            } else {
+                uniqueid[0] = (int) faissInfo.ids[0];
+            }
+
+            //从引擎获取图片的特征
+            float[] encode = engineData.getEncodes().get(0);
+            //转base64
+            String strencode = Arrays.toString(encode);
+            //图片存到本地
+
+                //     信息插入数据库
+            Date date = new Date();
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            String nowTime = sdf.format(date);//将时间格式转换成符合Timestamp要求的格式.
+            Timestamp dates =Timestamp.valueOf(nowTime);//把时间转换
+            int ret2 = faceDao.insertFace(uniqueid[0], facename, filepath, workunit, sex, occu,dates); //一般信息存入mysql
+            if (ret2 == 1)
+                return "register face failed";
+            faissIndex.addIndex("FaceUser", 1, encode, uniqueid, dim);//人脸特征存入faiss
+        }
+        return "register face success";
+    }
 
     /**
      * 根据encode找人脸
@@ -173,6 +218,8 @@ public class ImageService {
         if(distance<flag)
             return "unknown";
         List<Map<String,Object>> lists = faceDao.searchDb((int)uniqueid);
+        if(lists == null)
+            return "unknown";
         Date date = new Date();
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         String nowTime = sdf.format(date);//将时间格式转换成符合Timestamp要求的格式.
@@ -181,9 +228,17 @@ public class ImageService {
         Map<String,String> result = new HashMap<>();
         for(Map<String,Object> map : lists){
             String personName = String.valueOf(map.get("NAME"));
+            if(personName ==null)
+                personName ="null";
             String personWorkunit = String.valueOf(map.get("WORKUNIT"));
+            if(personWorkunit==null)
+                personWorkunit="null";
             String personSex = String.valueOf(map.get("SEX"));
+            if(personSex==null)
+                personSex="null";
             String personOccupation = String.valueOf(map.get("OCCUPATION"));
+            if(personOccupation ==null)
+                personOccupation="null";
             result.put("name",personName);
             result.put("sex",personSex);
             result.put("company",personWorkunit);
@@ -201,16 +256,18 @@ public class ImageService {
     @ResponseBody
     public String searchFaceImage(@RequestParam(value = "imagefile") MultipartFile file){
         Mat mat = null;
+        Mat copymat = new Mat();
         String encodeurl = "http://"+url+"/locationEncode";
         CloudHttpServer httpServer = new CloudHttpServer();
         Set<String> personsInfo = new HashSet<>();
         try {
-            mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()),1);
+            mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()), 1);
         } catch (IOException e) {
             e.printStackTrace();
         }
         MatOfByte matOfByte = new MatOfByte();
         Imgcodecs.imencode(".jpg",mat,matOfByte);
+        System.out.println(matOfByte.toArray().length);
         byte[] result = Base64.encodeBase64(matOfByte.toArray());
         Map<String,Object> imageInfo = new HashMap<>();
         imageInfo.put("image",new String(result));
@@ -220,14 +277,14 @@ public class ImageService {
         }
         EngineData engineData = JSONObject.parseObject(responseData,EngineData.class);
         int picNum = engineData.getEncodes().size();
-        float[] searchEncodes = new float[picNum*128];
+        float[] searchEncodes = new float[picNum*dim];
         for(int i=0;i<picNum;i++)
-            for(int j =0;j<128;j++)
-                searchEncodes[128*i+j] = engineData.getEncodes().get(i)[j];
+            for(int j =0;j<dim;j++)
+                searchEncodes[dim*i+j] = engineData.getEncodes().get(i)[j];
         FaissInfo faissInfo = faissIndex.searchIndex(picNum,searchEncodes);
         for(int i=0;i<picNum;i++){
-
             if((double)faissInfo.distance[i*10]<flag) {
+                System.out.println((double)faissInfo.distance[i*10]);
                 continue;
             }
             else{
@@ -364,4 +421,36 @@ public class ImageService {
             double result=fenzi/Math.sqrt(left*right);
             return String.valueOf(result);
     }
+    public boolean FileStore(MultipartFile file,String filepath) {
+        BufferedInputStream bis = null;
+        FileOutputStream fr = null;
+        try {
+            bis = new BufferedInputStream(file.getInputStream());
+            fr = new FileOutputStream(filepath);
+            byte[] buffer = new byte[1024];
+            int ret = -1;
+            while ((ret = bis.read(buffer, 0, buffer.length)) != -1) {
+                fr.write(buffer, 0, ret);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (bis != null) {
+                try {
+                    bis.close();
+                } catch (IOException e) {
+                    return false;
+                }
+            }
+            if (fr != null) {
+                try {
+                    fr.close();
+                } catch (IOException e) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }
+
