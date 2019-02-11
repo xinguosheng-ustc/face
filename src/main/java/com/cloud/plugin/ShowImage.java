@@ -27,7 +27,7 @@ public class ShowImage {
      */
     private void initialize(Mat mat) {
         frame = new JFrame();
-        frame.setBounds(20, 100, mat.width() + 100, mat.height() + 80);
+        frame.setBounds(20, 100, mat.width(), mat.height());
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.getContentPane().setLayout(null);
         BufferedImage image = new MatToBufImg(mat, ".png").getImage();

@@ -17,25 +17,15 @@ public class CloudHttpServer implements AutoCloseable{
             .build();
     private static final MediaType JSONS = MediaType.parse("application/json; charset=utf-8");
 
-    public String SendMessage(Map<String,Object> msgInfo,String url) {
+    public String SendMessage(Map<String,Object> msgInfo,String url) throws IOException {
         JSONObject jsonObject = new JSONObject(msgInfo);
         RequestBody requestBody = FormBody.create(JSONS, JSON.toJSONString(msgInfo));
         Request request = new Request.Builder().url(url).post(requestBody).build();
         Call call = client.newCall(request);
         Response response = null;
         String responseData = null;
-        try {
-            response = call.execute();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "null";
-        }
-        try {
-            responseData = response.body().string();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "null";
-        }
+        response = call.execute();
+        responseData = response.body().string();
         return responseData;
 
     }

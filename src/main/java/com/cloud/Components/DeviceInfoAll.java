@@ -43,7 +43,6 @@ public class DeviceInfoAll {
             isRun = true;
             keepAliveTime = new Thread(() -> {
                     while (isRun) {
-                        System.out.println("running");
                         try {
                             Thread.sleep(1000);
                         } catch (InterruptedException e) {

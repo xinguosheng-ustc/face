@@ -9,7 +9,7 @@ public class FaissIndex {
 
     public native void addIndex(String indexName, int num, float[] feature, int[] uniqueid, int dim);
 
-    public native FaissInfo searchIndex(int num, float[] feature);
+    public native FaissInfo searchIndex(int num, float[] feature,int dim);
 
     public native void deleteIndex(int uniqueId, String indexName);
 

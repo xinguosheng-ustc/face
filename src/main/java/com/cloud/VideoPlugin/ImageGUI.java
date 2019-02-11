@@ -40,12 +40,12 @@ public class ImageGUI extends JComponent {
 
     public void createWin(String title, Dimension size) {
         JDialog ui = new JDialog();
-        ui.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         ui.setTitle(title);
         ui.getContentPane().setLayout(new BorderLayout());
         ui.getContentPane().add(this, BorderLayout.CENTER);
         ui.setSize(size);
         ui.setVisible(true);
+        ui.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     }
 
     public void imshow(BufferedImage image) {

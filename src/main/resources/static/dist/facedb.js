@@ -165,7 +165,7 @@ function uploadregister(){
         dataType:"text",
         data: formData,
         success: function(data){
-                alert("注册成功");
+                alert(data);
         },
         error:function(err){
             alert("注册失败");
@@ -176,9 +176,9 @@ function deletefacedb(){
     $("#deleteface").css("display","none");
     var formData = new FormData();
     var file = $("#deleteimage")[0].files[0];
-    formData.append("image",file);
+    formData.append("imagefile",file);
     $.ajax({
-        url: '/image/deleteface',
+        url: '/image/deletebyimage',
         type:'POST',
         processData: false,
         contentType: false,
@@ -219,7 +219,7 @@ function facescore(){
     formData.append("imagefile",file1);
     formData.append("imagefile",file2);
     $.ajax({
-        url: '/image/predict',
+        url: '/image/facecompare',
         type:'POST',
         processData: false,
         contentType: false,

@@ -27,7 +27,12 @@ public class Test {
     }
     @RequestMapping("test2")
     public String test2(){
-        List<Map<String, Object>> infoMap = faceDao.searchDb(50);
+        List<Map<String, Object>> infoMap = null;
+        try {
+            infoMap = faceDao.searchDb(50);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         Map<String,Object> info =  infoMap.get(0);
         Timestamp timestamp = (Timestamp)info.get("LASTTIME");
         Date date = new Date(timestamp.getTime());

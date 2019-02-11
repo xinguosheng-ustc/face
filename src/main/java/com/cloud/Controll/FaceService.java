@@ -6,6 +6,7 @@ import com.cloud.Dao.FaceDao;
 import com.cloud.Components.DeviceInfoAll;
 import com.cloud.DataStruct.MyFloat;
 import com.cloud.DataStruct.EngineData;
+import com.cloud.DataStruct.PeopleInfo;
 import com.cloud.JniPackage.FaissIndex;
 import com.cloud.JniPackage.FaissInfo;
 import com.cloud.plugin.ShowImage;
@@ -33,8 +34,9 @@ import static org.opencv.imgcodecs.Imgcodecs.IMREAD_UNCHANGED;
 
 @Controller
 @RequestMapping("/image")
-public class ImageService {
-    private int dim = 128;
+public class FaceService {
+    @Value("${dim}")
+    private int dim;
     @Value("${flag}")
     private double flag;
     @Value("${engineurl}")
@@ -46,12 +48,9 @@ public class ImageService {
     public String getUrl() {
         return url;
     }
-
     public void setUrl(String url) {
         this.url = url;
     }
-
-
     /**
      * 创建人脸库
      * @param dbName
@@ -77,31 +76,30 @@ public class ImageService {
         String encodeurl = "http://"+url+"/locationEncode";
         int uniqueid[] = {-1};
         String filepath = "./img/" + file.getOriginalFilename() + String.valueOf(new Random().nextLong()) + System.currentTimeMillis() + ".jpg";
-        Mat mat = null;
-        Mat borderMat = null;
         Map<String,Object> imageInfo = new HashMap<>();
         CloudHttpServer httpServer = new CloudHttpServer();
-        try {
-            mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()), 1);
-            int originCols = mat.cols();
-            int originRows = mat.rows();
-            borderMat = new Mat(2*originCols,2*originRows, CvType.CV_8UC3,new Scalar(255,255,255));
-            Rect area = new Rect(0,0,originCols,originRows);
-            Mat newBorderMat = new Mat(borderMat,area);
-            mat.copyTo(newBorderMat);
-        }catch (Exception e){
-            return "register face failed";
-        }
+        //123
+        if(facename == null|| file == null || workunit == null || sex == null ||occupation == null)
+            return "5";
+        Mat borderMat = preProcess(file);
+        //123
+//        Mat borderMat = preProcess(file);
         MatOfByte matOfByte = new MatOfByte();
         Imgcodecs.imencode(".jpg",borderMat,matOfByte);
         byte[] result = Base64.encodeBase64(matOfByte.toArray());
         imageInfo.put("image",new String(result));
-        String responseData = httpServer.SendMessage(imageInfo,encodeurl);
+        String responseData = null;
+        try {
+            responseData = httpServer.SendMessage(imageInfo,encodeurl);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         EngineData engineData = JSONObject.parseObject(responseData,EngineData.class);
         if (engineData.getEncodes().size() > 1)
-            return "image include more than one face";
-
-        FaissInfo faissInfo = faissIndex.searchIndex(1, engineData.getEncodes().get(0));
+            return "1";
+        if (engineData.getEncodes().size() <= 0)
+            return "2";
+        FaissInfo faissInfo = faissIndex.searchIndex(1, engineData.getEncodes().get(0),dim);
         if (faissInfo.distance[0] <flag) {
                 //距离太大，数据库无此人脸
             uniqueid[0] = faceDao.searchMaxUniqueId() + 1;
@@ -121,14 +119,14 @@ public class ImageService {
         Timestamp dates =Timestamp.valueOf(nowTime);//把时间转换
         int retInsert =  faceDao.insertFace(uniqueid[0], facename, filepath,workunit,sex,occupation,dates); //一般信息存入mysql
         if(retInsert ==1 )
-            return "register face failed";
+            return "3";
         faissIndex.addIndex("FaceUser", 1, encode, uniqueid,dim);//人脸特征存入faiss
 
         boolean ret = FileStore(file,filepath);
         if(ret == false)
-            return "register face failed";
+            return "4";
 
-        return "register face success";
+        return "0";
     }
 
     /**
@@ -136,46 +134,48 @@ public class ImageService {
      */
     @RequestMapping("/registerbatch")
     @ResponseBody
-    public String registerBatch(@RequestParam("files") List<MultipartFile> files,@RequestParam("workunit")String workunit) {
+    public String registerBatch(@RequestParam("imagefile") List<MultipartFile> files) {
         int num = files.size();
+        System.out.println(files.size());
         for(MultipartFile file : files) {
             Mat mat = null;
             String filename = file.getOriginalFilename();
-            String[] str = filename.split("_");
-            String occu = str[0];
-            String sex = "";
-            String namepre = str[1];
+            int index = filename.indexOf(".");
+            String str = filename.substring(0, index);
+            String[] strs = str.split("_");
 
-            int index = namepre.indexOf(".");
-            String facename = namepre.substring(0, index);
+            String occupation = strs[0];
+            String facename = strs[1];
+            String sex = "";
+            String workunit="";
+//            String sex = strs[2];
+//            String workunit = strs[3];
+//            if(facename.equals(null)|| file.equals(null) || workunit.equals(null) || sex.equals(null) ||occupation.equals(null))
+//                return "5";
+
             CloudHttpServer httpServer = new CloudHttpServer();
             String encodeurl = "http://" + url + "/locationEncode";
             int uniqueid[] = {-1};
             String filepath = "./img/" + file.getOriginalFilename() + String.valueOf(new Random().nextLong()) + System.currentTimeMillis() + ".jpg";
-            BufferedInputStream bis = null;
-            FileOutputStream fr = null;
-
-//            mat = Imgcodecs.imread(filepath,1);
-
+            Mat borderMat = preProcess(file);
             Map<String, Object> imageInfo = new HashMap<>();
+            MatOfByte matOfByte = new MatOfByte();
+            Imgcodecs.imencode(".jpg",borderMat,matOfByte);
+            byte[] result = Base64.encodeBase64(matOfByte.toArray());
+            imageInfo.put("image",new String(result));
+            String responseData = null;
             try {
-                mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()),1);
+                responseData = httpServer.SendMessage(imageInfo, encodeurl);
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            System.out.println(file.getOriginalFilename());
-            MatOfByte matOfByte = new MatOfByte();
-            Imgcodecs.imencode(".jpg",mat,matOfByte);
-            byte[] result = Base64.encodeBase64(matOfByte.toArray());
-            imageInfo.put("image",new String(result));
-            String responseData = httpServer.SendMessage(imageInfo, encodeurl);
             EngineData engineData = JSONObject.parseObject(responseData, EngineData.class);
             if (engineData.getEncodes().size() > 1)
-                return filename + " image include more than one face";
+                return "1";
             if(engineData.getEncodes().size()<=0)
-                return filename + "image has no people";
+                return "2";
             float[] test = engineData.getEncodes().get(0);
-            FaissInfo faissInfo = faissIndex.searchIndex(1,test);
+            FaissInfo faissInfo = faissIndex.searchIndex(1,test,dim);
             if (faissInfo.distance[0] < flag) {
                 //距离太大，数据库无此人脸
                 uniqueid[0] = faceDao.searchMaxUniqueId() + 1;
@@ -188,19 +188,21 @@ public class ImageService {
             float[] encode = engineData.getEncodes().get(0);
             //转base64
             String strencode = Arrays.toString(encode);
-            //图片存到本地
 
                 //     信息插入数据库
             Date date = new Date();
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             String nowTime = sdf.format(date);//将时间格式转换成符合Timestamp要求的格式.
             Timestamp dates =Timestamp.valueOf(nowTime);//把时间转换
-            int ret2 = faceDao.insertFace(uniqueid[0], facename, filepath, workunit, sex, occu,dates); //一般信息存入mysql
+            int ret2 = faceDao.insertFace(uniqueid[0], facename, filepath, workunit, sex, occupation,dates); //一般信息存入mysql
             if (ret2 == 1)
-                return "register face failed";
+                return "3";
+            boolean ret = FileStore(file,filepath);
+            if(ret == false)
+                return "4";
             faissIndex.addIndex("FaceUser", 1, encode, uniqueid, dim);//人脸特征存入faiss
         }
-        return "register face success";
+        return "0";
     }
 
     /**
@@ -212,12 +214,17 @@ public class ImageService {
     @ResponseBody
     public String searchFaceEncode(@org.springframework.web.bind.annotation.RequestBody MyFloat encode){
         float[] floats = encode.getEncode();
-        FaissInfo faissInfo = faissIndex.searchIndex(1,floats);
+        FaissInfo faissInfo = faissIndex.searchIndex(1,floats,dim);
         long uniqueid = faissInfo.ids[0];
         float distance = faissInfo.distance[0];
         if(distance<flag)
             return "unknown";
-        List<Map<String,Object>> lists = faceDao.searchDb((int)uniqueid);
+        List<Map<String,Object>> lists = null;
+        try {
+            lists = faceDao.searchDb((int)uniqueid);
+        } catch (Exception e) {
+            return "unknown";
+        }
         if(lists == null)
             return "unknown";
         Date date = new Date();
@@ -229,16 +236,16 @@ public class ImageService {
         for(Map<String,Object> map : lists){
             String personName = String.valueOf(map.get("NAME"));
             if(personName ==null)
-                personName ="null";
+                personName ="";
             String personWorkunit = String.valueOf(map.get("WORKUNIT"));
             if(personWorkunit==null)
-                personWorkunit="null";
+                personWorkunit="";
             String personSex = String.valueOf(map.get("SEX"));
             if(personSex==null)
-                personSex="null";
+                personSex="";
             String personOccupation = String.valueOf(map.get("OCCUPATION"));
             if(personOccupation ==null)
-                personOccupation="null";
+                personOccupation="";
             result.put("name",personName);
             result.put("sex",personSex);
             result.put("company",personWorkunit);
@@ -256,22 +263,100 @@ public class ImageService {
     @ResponseBody
     public String searchFaceImage(@RequestParam(value = "imagefile") MultipartFile file){
         Mat mat = null;
-        Mat copymat = new Mat();
         String encodeurl = "http://"+url+"/locationEncode";
         CloudHttpServer httpServer = new CloudHttpServer();
-        Set<String> personsInfo = new HashSet<>();
-        try {
-            mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()), 1);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        Set<PeopleInfo> returnInfo = new HashSet<>();
+        Mat borderMat = preProcess(file);
         MatOfByte matOfByte = new MatOfByte();
-        Imgcodecs.imencode(".jpg",mat,matOfByte);
-        System.out.println(matOfByte.toArray().length);
+        Imgcodecs.imencode(".jpg",borderMat,matOfByte);
         byte[] result = Base64.encodeBase64(matOfByte.toArray());
         Map<String,Object> imageInfo = new HashMap<>();
         imageInfo.put("image",new String(result));
-        String responseData = httpServer.SendMessage(imageInfo,encodeurl);
+        String responseData = null;
+        try {
+            responseData = httpServer.SendMessage(imageInfo,encodeurl);
+        } catch (IOException e) {
+            return "1";
+        }
+        if(responseData.equals("null")){
+            return "2";
+        }
+        EngineData engineData = JSONObject.parseObject(responseData,EngineData.class);
+        List<float[]> boxs = engineData.getBoxs();
+        int picNum = engineData.getEncodes().size();
+        float[] searchEncodes = new float[picNum*dim];
+
+        for(int i=0;i<picNum;i++)
+            for(int j =0;j<dim;j++)
+                searchEncodes[dim*i+j] = engineData.getEncodes().get(i)[j];
+        FaissInfo faissInfo = faissIndex.searchIndex(picNum,searchEncodes,dim);
+        for(int i=0;i<picNum;i++){
+            if((double)faissInfo.distance[i*10]<flag) {
+                continue;
+            }
+            else{
+                List<Map<String, Object>> mapList = null;
+                try {
+                    mapList = faceDao.searchDb((int)faissInfo.ids[i*10]);
+                } catch (Exception e) {
+                    continue;
+                }
+                if(mapList == null)
+                    continue;
+                for(Map<String,Object> map : mapList){
+                    PeopleInfo peopleInfo = new PeopleInfo();
+                    peopleInfo.setPersonName(String.valueOf(map.get("NAME")));
+                    peopleInfo.setPersonOccupation(String.valueOf(map.get("OCCUPATION")));
+                    peopleInfo.setPersonSex(String.valueOf(map.get("SEX")));
+                    peopleInfo.setPersonWorkunit(String.valueOf(map.get("WORKUNIT")));
+                    peopleInfo.setPersonLocation(boxs.get(i));
+                    returnInfo.add(peopleInfo);
+                }
+            }
+        }
+        if(returnInfo.isEmpty())
+            return "3";
+
+        return JSON.toJSONString(returnInfo,true);
+    }
+
+    /**
+     *
+     * 删除人脸
+     * @param
+     * @return
+     */
+    @RequestMapping("/deletebyinfo")
+    @ResponseBody
+    public String deleteFaceinfo(@RequestParam(value = "name")String name,@RequestParam(value = "workunit")String workunit,@RequestParam(value = "sex")String sex,@RequestParam(value = "occupation")String occupation){
+
+        if (name.equals(null) || workunit.equals(null) || sex.equals(null) ||occupation.equals(null)) {
+            return "1";
+        }
+
+        int ret  = faceDao.deleteFace(name,workunit,sex,occupation);
+        if(ret >=0)
+            return "0";
+        else
+            return "2";
+    }
+    @RequestMapping("/deletebyimage")
+    @ResponseBody
+    public String deleteFace(@RequestParam(value = "imagefile") MultipartFile file){
+        String encodeurl = "http://"+url+"/locationEncode";
+        CloudHttpServer httpServer = new CloudHttpServer();
+        Mat borderMat = preProcess(file);
+        MatOfByte matOfByte = new MatOfByte();
+        Imgcodecs.imencode(".jpg",borderMat,matOfByte);
+        byte[] result = Base64.encodeBase64(matOfByte.toArray());
+        Map<String,Object> imageInfo = new HashMap<>();
+        imageInfo.put("image",new String(result));
+        String responseData = null;
+        try {
+            responseData = httpServer.SendMessage(imageInfo,encodeurl);
+        } catch (IOException e) {
+            return "1";
+        }
         if(responseData.equals("null")){
             return "search failed";
         }
@@ -281,76 +366,24 @@ public class ImageService {
         for(int i=0;i<picNum;i++)
             for(int j =0;j<dim;j++)
                 searchEncodes[dim*i+j] = engineData.getEncodes().get(i)[j];
-        FaissInfo faissInfo = faissIndex.searchIndex(picNum,searchEncodes);
-        for(int i=0;i<picNum;i++){
-            if((double)faissInfo.distance[i*10]<flag) {
-                System.out.println((double)faissInfo.distance[i*10]);
-                continue;
-            }
-            else{
-                List<Map<String, Object>> mapList = faceDao.searchDb((int)faissInfo.ids[i*10]);
-                if(mapList == null)
-                    continue;
-                for(Map<String,Object> map : mapList){
-                    String personName = String.valueOf(map.get("NAME"));
-                    String personWorkunit = String.valueOf(map.get("WORKUNIT"));
-                    String personSex = String.valueOf(map.get("SEX"));
-                    String personOccupation = String.valueOf(map.get("OCCUPATION"));
-                    personsInfo.add(personName+","+personWorkunit+","+personSex+","+personOccupation);
-                }
-            }
-        }
-        if(personsInfo.isEmpty())
-            return "no people in this picture";
-
-        return JSON.toJSONString(personsInfo);
-    }
-
-    /**
-     *
-     * 删除人脸
-     * @param file
-     * @return
-     */
-    @RequestMapping("/deleteface")
-    @ResponseBody
-    public String deleteFace(@RequestParam(value = "image") MultipartFile file){
-        Mat mat = null;
-        String encodeurl = "http://"+url+"/locationEncode";
-        CloudHttpServer httpServer = new CloudHttpServer();
-        try {
-            mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()),1);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        MatOfByte matOfByte = new MatOfByte();
-        Imgcodecs.imencode(".jpg",mat,matOfByte);
-        byte[] result = Base64.encodeBase64(matOfByte.toArray());
-        Map<String,Object> imageInfo = new HashMap<>();
-        imageInfo.put("image",new String(result));
-        String responseData = httpServer.SendMessage(imageInfo,encodeurl);
-        if(responseData.equals("null")){
-            return "search failed";
-        }
-        EngineData engineData = JSONObject.parseObject(responseData,EngineData.class);
-        int picNum = engineData.getEncodes().size();
-        float[] searchEncodes = new float[picNum*128];
-        for(int i=0;i<picNum;i++)
-            for(int j =0;j<128;j++)
-                searchEncodes[128*i+j] = engineData.getEncodes().get(i)[j];
-        FaissInfo faissInfo = faissIndex.searchIndex(picNum,searchEncodes);
+        FaissInfo faissInfo = faissIndex.searchIndex(picNum,searchEncodes,dim);
         Set<Integer> deleteIds = new HashSet<>();
         if(faissInfo.distance.length<1)
-            return "can't find this person";
+            return "2";
         for(int i=0;i<faissInfo.distance.length;i++){
             if(faissInfo.distance[i]>flag){
                 deleteIds.add((int)faissInfo.ids[i]);
             }
         }
         if(deleteIds.size()<=0)
-            return "can't find this person";
+            return "2";
         for(int id : deleteIds){
-            List<Map<String,Object>> idsInfo = faceDao.searchDb(id);
+            List<Map<String,Object>> idsInfo = null;
+            try {
+                idsInfo = faceDao.searchDb(id);
+            } catch (Exception e) {
+                continue;
+            }
             for(Map<String,Object> idInfo:idsInfo){
                 String filepath = idInfo.get("IMAGEPATH").toString();
                 try{
@@ -364,7 +397,7 @@ public class ImageService {
             faissIndex.deleteIndex(id,"FaceUser");
         }
 
-        return "delete success";
+        return "0";
     }
 
     /**
@@ -372,33 +405,32 @@ public class ImageService {
      * @param files
      * @return
      */
-    @RequestMapping("/predict")
+    @RequestMapping("/facecompare")
     @ResponseBody
     public  String  predict(@RequestParam(value = "imagefile") List<MultipartFile> files){
         Mat mat = null;
         String encodeurl = "http://"+url+"/locationEncode";
         List<float[]> fileFeature = new ArrayList<>();
         if(files.size()>2)
-            return "picture num more than 2";
-        if(files.size()<2)
-            return "picture num less than 2";
+            return "1";
+
         for(MultipartFile file:files){
             try(CloudHttpServer httpServer = new CloudHttpServer()) {
-                mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()),1);
+                Mat borderMat = preProcess(file);
                 MatOfByte matOfByte = new MatOfByte();
-                Imgcodecs.imencode(".jpg",mat,matOfByte);
+                Imgcodecs.imencode(".jpg",borderMat,matOfByte);
                 byte[] result = Base64.encodeBase64(matOfByte.toArray());
                 Map<String,Object> imageInfo = new HashMap<>();
                 imageInfo.put("image",new String(result));
                 String responseData = httpServer.SendMessage(imageInfo,encodeurl);
                 if(responseData.equals("null")){
-                    return "search failed";
+                    return "3";
                 }
                 EngineData engineData = JSONObject.parseObject(responseData,EngineData.class);
                 if(engineData.getEncodes().size()>1)
-                    return  file.getOriginalFilename()+" has more than one person";
+                    return  "2";
                 if(engineData.getEncodes().size()<1)
-                    return file.getOriginalFilename()+" has no person";
+                    return "3";
                 fileFeature.add(engineData.getEncodes().get(0));
             } catch (Exception e) {
                 e.printStackTrace();
@@ -451,6 +483,24 @@ public class ImageService {
             }
         }
         return true;
+    }
+    public  Mat preProcess(MultipartFile file){
+        Mat mat = null;
+        Mat borderMat = null;
+        try {
+            mat = Imgcodecs.imdecode(new MatOfByte(file.getBytes()), 1);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        int originCols = mat.cols();
+        int originRows = mat.rows();
+        System.out.println(file.getOriginalFilename()+":"+originCols+":"+originRows);
+        borderMat = new Mat(originRows+100,originCols+100, CvType.CV_8UC3,new Scalar(255,255,255));
+        Rect area = new Rect(0,0,originCols,originRows);
+        Mat newBorderMat = new Mat(borderMat,area);
+        mat.copyTo(newBorderMat);
+        return borderMat;
     }
 }
 
